@@ -149,10 +149,13 @@ public class PhotoViewAttacher implements IPhotoView, View.OnTouchListener,
     private ScaleType mScaleType = ScaleType.FIT_CENTER;
 
     public PhotoViewAttacher(ImageView imageView) {
-        this(imageView, true);
+        this(imageView, true, 0);
     }
 
-    public PhotoViewAttacher(ImageView imageView, boolean zoomable) {
+    public PhotoViewAttacher(ImageView imageView, boolean zoomable, float aspectRatio) {
+        // カスタマイズ
+        this.mAspectRatio = aspectRatio;
+
         mImageView = new WeakReference<>(imageView);
 
         imageView.setDrawingCacheEnabled(true);
@@ -671,6 +674,12 @@ public class PhotoViewAttacher implements IPhotoView, View.OnTouchListener,
 
                 // Update the base matrix using the current drawable
                 updateBaseMatrix(imageView.getDrawable());
+
+                RectF rect = getDisplayRect();
+                if (null != rect) {
+                    imageView.post(new AnimatedZoomRunnable(getScale(), mMinScale,
+                            rect.centerX(), rect.centerY()));
+                }
             } else {
                 // Reset the Matrix...
                 resetMatrix();
@@ -734,26 +743,29 @@ public class PhotoViewAttacher implements IPhotoView, View.OnTouchListener,
         final float height = rect.height(), width = rect.width();
         float deltaX = 0, deltaY = 0;
 
+        final int viewWidth = getImageViewWidth(imageView);
         final int viewHeight = getImageViewHeight(imageView);
-        if (height <= viewHeight) {
+        final float frameHeight = getFrameHeight(viewWidth, viewHeight);
+        rect.offset(0, -(viewHeight - frameHeight) / 2);
+
+        if (height <= frameHeight) {
             switch (mScaleType) {
                 case FIT_START:
                     deltaY = -rect.top;
                     break;
                 case FIT_END:
-                    deltaY = viewHeight - height - rect.top;
+                    deltaY = frameHeight - height - rect.top;
                     break;
                 default:
-                    deltaY = (viewHeight - height) / 2 - rect.top;
+                    deltaY = (frameHeight - height) / 2 - rect.top;
                     break;
             }
         } else if (rect.top > 0) {
             deltaY = -rect.top;
-        } else if (rect.bottom < viewHeight) {
-            deltaY = viewHeight - rect.bottom;
+        } else if (rect.bottom < frameHeight) {
+            deltaY = frameHeight - rect.bottom;
         }
 
-        final int viewWidth = getImageViewWidth(imageView);
         if (width <= viewWidth) {
             switch (mScaleType) {
                 case FIT_START:
@@ -1074,6 +1086,9 @@ public class PhotoViewAttacher implements IPhotoView, View.OnTouchListener,
                 return;
             }
 
+            final float frameHeight = getFrameHeight(viewWidth, viewHeight);
+            rect.offset(0, -(viewHeight - frameHeight) / 2);
+
             final int startX = Math.round(-rect.left);
             final int minX, maxX, minY, maxY;
 
@@ -1085,9 +1100,9 @@ public class PhotoViewAttacher implements IPhotoView, View.OnTouchListener,
             }
 
             final int startY = Math.round(-rect.top);
-            if (viewHeight < rect.height()) {
+            if (frameHeight < rect.height()) {
                 minY = 0;
-                maxY = Math.round(rect.height() - viewHeight);
+                maxY = Math.round(rect.height() - frameHeight);
             } else {
                 minY = maxY = startY;
             }
@@ -1140,4 +1155,46 @@ public class PhotoViewAttacher implements IPhotoView, View.OnTouchListener,
             }
         }
     }
+
+    //
+    //
+    //
+
+    /**
+     * エリアのアクペクト比、横幅をImageViewに合わせる前提
+     * <p/>
+     * {@link #checkMatrixBounds()}
+     * {@link FlingRunnable#fling(int, int, int, int)}
+     */
+    private final float mAspectRatio;
+
+    private float getFrameHeight(final int viewWidth, final int viewHeight) {
+        final float frameHeight;
+        if (viewWidth > 0 && mAspectRatio > 0) {
+            frameHeight = (int) (viewWidth / mAspectRatio);
+        } else {
+            frameHeight = viewHeight;
+        }
+
+        return frameHeight;
+    }
+
+    public RectF getFrameRect() {
+        final ImageView imageView = getImageView();
+        if (null == imageView) {
+            return null;
+        }
+
+        if (mAspectRatio <= 0) {
+            return null;
+        }
+
+        final int viewHeight = getImageViewHeight(imageView);
+        final int viewWidth = getImageViewWidth(imageView);
+        final float frameHeight = getFrameHeight(viewWidth, viewHeight);
+        float offset = (viewHeight - frameHeight) / 2;
+
+        return new RectF(0, offset, viewWidth, frameHeight + offset);
+    }
+
 }
