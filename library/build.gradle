@@ -21,7 +21,7 @@ dependencies {
 publish {
     userOrg = 'uphyca'
     groupId = 'com.uphyca'
-    artifactId = 'PhotoView'
+    artifactId = 'photoview'
     version = '1.2.4'
     description = 'Implementation of ImageView for Android that supports zooming, by various touch gestures.'
     website = 'https://github.com/uPhyca/PhotoView'
